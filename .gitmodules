@@ -7,3 +7,6 @@
 [submodule "lib/SFML"]
 	path = lib/SFML
 	url = https://github.com/SFML/SFML.git
+[submodule "lib/GLAD"]
+	path = lib/GLAD
+	url = https://github.com/Dav1dde/glad.git

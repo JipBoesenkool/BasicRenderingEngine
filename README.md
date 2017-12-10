@@ -12,4 +12,7 @@ Build instructions:
 7.mac/linux   cmake ..  
 7.windows     cmake -G "Visual Studio 15 2017 Win64" ..  
 8.mac/linux   make  
-8.windows     open up .sln project and build/run project  
+8.windows     open up .sln project and build/run project
+
+TODO:
+Refactor oglrenderer/model so it can be used by other APIs (Vulcan, DirectX)
