@@ -30,9 +30,10 @@ public:
 	OglShaderMap m_shaderMap;
 	unsigned int m_gBuffer, m_gPosition, m_gNormal, m_gAlbedoSpec, m_rboDepth;
 	Shader* m_shaderGeometryPass;
+	Shader* m_defaultScreenShader;
 
 private:
-	Shader* m_defaultScreenShader;
+
 	GLuint quadVAO = 0;
 	GLuint quadVBO;
 
@@ -51,7 +52,6 @@ public:
 private:
 	void PrintVersions();
 	void SetupOpenglSettings();
-	void SetupGlew();
 
 	void SetupEventListeners();
 	void SetupBuffers();
@@ -63,7 +63,7 @@ private:
 public:
 	//Render all render target and swap buffers.
 	void Render() override;
-	void RenderTargetToScreen( int gbufferID, float x = 0.0f, float y = 0.0f, float width = 1.0f, float height = 1.0f ) override;
+	void RenderTargetToScreen( unsigned int gbufferID, float x = 0.0f, float y = 0.0f, float width = 1.0f, float height = 1.0f ) override;
 
 	void BindFrameBuffer() override;
 	//void BindFrameBuffer() override;

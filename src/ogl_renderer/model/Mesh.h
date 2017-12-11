@@ -16,22 +16,32 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "Vertex.h"
+#include "Texture.h"
+#include "../Shader.h"
 
 class Mesh
 {
 //Members
 public:
 	std::vector<Vertex> m_vertices;
-	std::vector<GLuint> m_indices;
-	glm::mat4 origin = glm::mat4(1.0f);
-//Static
-public:
-	static Mesh ParseObj(const char* filepath);
+	std::vector<unsigned int> m_indices;
+	std::vector<Texture>m_textures;
+private:
+	/*  Render data  */
+	unsigned int m_VAO, m_VBO, m_EBO;
 //Functions
 public:
 	Mesh(){};
+	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures);
+	~Mesh();
 
+	void Draw( Shader* shader );
+
+	void SetupMesh();
 	void Normalize();
+
+private:
+	void BindTextures(Shader* shader);
 };
 
 

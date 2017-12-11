@@ -31,7 +31,7 @@ public:
 public:
 	//Render all render target and swap buffers.
 	virtual void Render() = 0;
-	virtual void RenderTargetToScreen( int gbufferID, float x = 0.0f, float y = 0.0f, float width = 1.0f, float height = 1.0f ) = 0;
+	virtual void RenderTargetToScreen( unsigned int gbufferID, float x = 0.0f, float y = 0.0f, float width = 1.0f, float height = 1.0f ) = 0;
 
 	virtual void BindFrameBuffer() = 0;
 	virtual void UnbindFrameBuffer() = 0;

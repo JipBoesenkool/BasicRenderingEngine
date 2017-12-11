@@ -21,10 +21,9 @@ private:
 	};
 //Functions
 public:
-	CubeMapModel(GLuint shader, const char* filepath, Transform *transform);
+	CubeMapModel(Shader* shader, const char* filepath);
 
-	void Draw( glm::mat4 m ) override;
-	void Update() override;
+	void Draw( glm::mat4 m, Shader* shader = nullptr ) override;
 
 private:
 	void LoadCubemap(const char* filepath ,std::vector<std::string> faces);

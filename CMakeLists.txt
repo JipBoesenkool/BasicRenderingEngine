@@ -35,6 +35,16 @@ add_subdirectory(${GLM_SOURCE_DIR})
 set(SFML_SOURCE_DIR "${PROJECT_SOURCE_DIR}/lib/SFML")
 add_subdirectory(${SFML_SOURCE_DIR})
 
+#ASSIMP
+set(ASSIMP_SOURCE_DIR "${PROJECT_SOURCE_DIR}/lib/assimp-4.0.1")
+include_directories(${ASSIMP_SOURCE_DIR}/include)
+include_directories(${ASSIMP_SOURCE_DIR}/cmake-build-debug/include)
+#add_subdirectory(${ASSIMP_SOURCE_DIR})
+##config.h
+#set(ASSIMP_LIBRARIES "${CMAKE_CURRENT_BINARY_DIR}/lib/assimp/code/libassimpd.a" "${CMAKE_CURRENT_BINARY_DIR}/lib/assimp/contrib/irrXML/libIrrXMLd.a")
+#include_directories(${CMAKE_CURRENT_BINARY_DIR}/lib/assimp/include)
+file(GLOB ASSIMP_LIBRARIES "${PROJECT_SOURCE_DIR}/lib/ass/*.dylib")
+
 ################################################################################
 # Project settings
 ################################################################################
@@ -57,6 +67,7 @@ set(LINKED_LIBRARIES
 #build executable and then link to the libraries
 add_executable(${EXECUTABLE_NAME} ${SOURCE_FILES} ${INCLUDE_FILES})
 target_link_libraries(${EXECUTABLE_NAME} ${LINKED_LIBRARIES})
+target_link_libraries(${EXECUTABLE_NAME} ${ASSIMP_LIBRARIES})
 target_include_directories(${EXECUTABLE_NAME} PRIVATE
         "${PROJECT_SOURCE_DIR}/lib/SFML/include"
         "${PROJECT_SOURCE_DIR}/lib")

@@ -102,9 +102,9 @@ void GLFWindow::CreateWindow( int width, int height, char* title )
 	// Ensure that minimum OpenGL version is 3.3
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	// Enable forward compatibility and allow a modern OpenGL context
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
 	// Create the GLFW window
@@ -121,12 +121,9 @@ void GLFWindow::CreateWindow( int width, int height, char* title )
 
 	// Make the context of the window
 	glfwMakeContextCurrent(GLFWindow::mp_window);
-
-	// Set swap interval to 1
-	glfwSwapInterval(1);
-
 	// Get the width and height of the framebuffer to properly resize the window
 	glfwGetFramebufferSize(GLFWindow::mp_window, &m_width, &m_height);
+
 	// Call the resize callback to make sure things get drawn immediately
 	Resize(m_width, m_height);
 }

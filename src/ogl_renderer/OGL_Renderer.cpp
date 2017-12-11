@@ -36,9 +36,10 @@ OGLRenderer::OGLRenderer( int width, int height )
 	}
 
 	//Setup renderer
+	PrintVersions();
 	SetupOpenglSettings();
 	SetupShaders();
-	SetupBuffers();
+	//SetupBuffers();
 	SetupEventListeners();
 }
 
@@ -47,22 +48,40 @@ OGLRenderer::~OGLRenderer()
 	// remove the delegates from the event manager
 	EventListenerDelegate delegateFunc = fastdelegate::MakeDelegate(this, &OGLRenderer::ResizeCallback);
 	IEventManager::Get()->RemoveListener("WindowResizeEvent", delegateFunc);
+
+	// remove the delegates from the event manager
+	delegateFunc = fastdelegate::MakeDelegate(this, &OGLRenderer::HandleKeyInput);
+	IEventManager::Get()->RemoveListener("KeyEvent", delegateFunc);
 }
 
 void OGLRenderer::Render()
 {
 	// Clear the color and depth buffers
+	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	//Render scene?
+
+	//Debug: Custom render targets
+	if(NDEBUG)
+	{
+		float w = (m_width / 6.0f) / m_width;
+		float h = (m_height / 6.0f) / m_height;
+		RenderTargetToScreen(m_gPosition, w * 0, h * 0, w, h);
+		RenderTargetToScreen(m_gNormal, w * 1, h * 0, w, h);
+		RenderTargetToScreen(m_gAlbedoSpec, w * 2, h * 0, w, h);
+		//m_renderer.RenderTargetToScreen(m_renderer.pingpongColorbuffers[1], w * 3, h * 0, w, h);
+		//m_renderer.RenderTargetToScreen(m_renderer.m_guiTexID, w * 4, h * 0, w, h);
+	}
 }
 
-void OGLRenderer::RenderTargetToScreen( int gbufferID, float x, float y, float width, float height )
+void OGLRenderer::RenderTargetToScreen( unsigned int gbufferID, float x, float y, float width, float height )
 {
 	//Default screen shader
 	m_defaultScreenShader->Use();
 
 	glm::vec3 scale(width, height, 1.0f);
-	glm::mat4 model;
+	glm::mat4 model(1.0f);
 	model = glm::translate( model, glm::vec3(
 			x * 2 + scale.x - 1.0f, //relative to left bottom
 			y * 2 + scale.y - 1.0f, //relative to left bottom
@@ -104,16 +123,33 @@ void OGLRenderer::UnbindFrameBuffer()
 void OGLRenderer::HandleKeyInput( IEventPtr pEvent )
 {
 	std::shared_ptr<KeyEvent> e = std::static_pointer_cast<KeyEvent>(pEvent);
-	if(e->m_key == GLFW_KEY_F12)
+	if(e->m_action == GLFW_PRESS)
 	{
-		NDEBUG = !NDEBUG;
+		if(e->m_key == GLFW_KEY_F10)
+		{
+			NDEBUG = !NDEBUG;
+			std::cout << NDEBUG << std::endl;
+		}
+		if(e->m_key == GLFW_KEY_F9)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		}
+		if(e->m_key == GLFW_KEY_F8)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
 	}
+
 }
 
 void OGLRenderer::Resize(int width, int height)
 {
 	m_width = width;
 	m_height = height;
+
+	// make sure the viewport matches the new window dimensions; note that width and
+	// height will be significantly larger than specified on retina displays.
+	glViewport(0, 0, width, height);
 }
 
 void OGLRenderer::ResizeCallback(IEventPtr pEvent)
@@ -133,9 +169,11 @@ unsigned int OGLRenderer::LoadShader( const char *vertexPath, const char *fragme
 // and post-processing effects.
 void OGLRenderer::RenderQuad()
 {
+	glDisable(GL_CULL_FACE);
+
 	if (quadVAO == 0)
 	{
-		GLfloat quadVertices[] = {
+		float quadVertices[] = {
 				// Positions    // Texture Coords
 				-1.0f,  1.0f,   0.0f, 1.0f,
 				-1.0f, -1.0f,   0.0f, 0.0f,
@@ -148,14 +186,20 @@ void OGLRenderer::RenderQuad()
 		glBindVertexArray(quadVAO);
 		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)0);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)(2 * sizeof(GLfloat)));
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
 	}
+
 	glBindVertexArray(quadVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glBindVertexArray(0);
+
+	glEnable(GL_CULL_FACE);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -175,12 +219,6 @@ void OGLRenderer::PrintVersions()
 
 void OGLRenderer::SetupOpenglSettings()
 {
-	glViewport(0, 0, m_width, m_height);
-
-#ifndef __APPLE__
-	// Setup GLEW. Don't do this on OSX systems.
-	SetupGlew();
-#endif
 	// Enable depth buffering
 	glEnable(GL_DEPTH_TEST);
 	// Related to shaders and z value comparisons for the depth buffer
@@ -188,35 +226,27 @@ void OGLRenderer::SetupOpenglSettings()
 	// Set polygon drawing mode to fill front and back of each polygon
 	// You can also use the paramter of GL_LINE instead of GL_FILL to see wireframes
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
 	// Disable backface culling to render both sides of polygons
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
 
-	//glDisable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
+
 	// Set clear color
-	glClearColor(0.05f, 0.8f, 0.85f, 1.0f);
-}
-
-void OGLRenderer::SetupGlew()
-{
-	// Initialize GLEW. Not needed on OSX systems.
-#ifndef __APPLE__
-	GLenum err = glewInit();
-	if (GLEW_OK != err)
-	{
-		/* Problem: glewInit failed, something is seriously wrong. */
-		fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
-		glfwTerminate();
-	}
-	fprintf(stdout, "Current GLEW version: %s\n", glewGetString(GLEW_VERSION));
-#endif
+	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 }
 
 void OGLRenderer::SetupEventListeners()
 {
+
 	// Window resize
 	EventListenerDelegate delegateFunc = fastdelegate::MakeDelegate(this, &OGLRenderer::ResizeCallback);
 	IEventManager::Get()->AddListener("WindowResizeEvent", delegateFunc);
+
+	// key
+	delegateFunc = fastdelegate::MakeDelegate(this, &OGLRenderer::HandleKeyInput);
+	IEventManager::Get()->AddListener("KeyEvent", delegateFunc);
 
 }
 

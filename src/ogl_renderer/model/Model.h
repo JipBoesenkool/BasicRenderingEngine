@@ -7,29 +7,31 @@
 #include "Material.h"
 #include "Transform.h"
 
+#include "../../../include/renderer/IModelLoader.h"
+#include "../modelLoaders/ObjLoader.h"
+
 class Model
 {
 //Members
 public:
-	//Composition, Model has
-	Mesh m_mesh;
-	Material m_material;
-	Transform *m_transform;
-	GLint m_shader;
-
-	// These variables are needed for the shader program
-	//Opengl
-	GLuint m_VBO, m_VAO, m_EBO;
+	/*  Model Data */
+	std::vector<Texture> m_loadedTextures;
+	std::vector<Mesh> m_meshes;
+	Shader* m_shader;
+	std::string m_filePath;
+	bool m_gammaCorrection;
 
 //Functions
 public:
 	Model();
-	Model(const char* filepath, GLuint shader, Transform *transform);
+	Model(const char* filepath, Shader* shader, bool gamma = false);
+	Model(const char* filepath, Shader* shader, IModelLoader* loader, bool gamma = false);
 	~Model();
 
-	void SetupMesh();
-	virtual void Draw( glm::mat4 m );
-	virtual void Update();
+	virtual void Draw( glm::mat4 m, Shader* shader = nullptr );
+
+private:
+	//void SetupMesh();
 };
 
 #endif
