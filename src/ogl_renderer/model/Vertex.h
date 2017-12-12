@@ -14,11 +14,4 @@ struct Vertex
 	glm::vec2 m_texCoords;
 };
 
-struct Tangex
-{
-	glm::vec3 m_tangent;
-	glm::vec3 m_bitangent;
-};
-
-
 #endif //VERTEX_H

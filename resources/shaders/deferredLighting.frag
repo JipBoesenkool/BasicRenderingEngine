@@ -18,7 +18,8 @@ const int NR_LIGHTS = 32;
 uniform Light lights[NR_LIGHTS];
 uniform vec3 viewPos;
 
-out vec4 FragColor;
+layout (location = 0) out vec4 FragColor;
+layout (location = 1) out vec4 BrightColor;
 
 void main()
 {
@@ -50,5 +51,13 @@ void main()
         specular *= attenuation;
         lighting += diffuse + specular;
     }
+
     FragColor = vec4(lighting, 1.0f);
+    BrightColor = vec4(0.0, 0.0, 0.0, 0.0);
+    // Check whether result is higher than some threshold, if so, output as bloom threshold color
+    float brightness = dot(FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > 1.0)
+    {
+        BrightColor = vec4(FragColor.rgb, 1.0);
+    }
 }

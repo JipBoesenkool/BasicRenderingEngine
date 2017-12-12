@@ -39,6 +39,7 @@ OGLRenderer::OGLRenderer( int width, int height )
 	PrintVersions();
 	SetupOpenglSettings();
 	SetupShaders();
+	//SetupGbufferShaders();
 	SetupBuffers();
 	SetupEventListeners();
 }
@@ -57,24 +58,28 @@ OGLRenderer::~OGLRenderer()
 void OGLRenderer::Render()
 {
 	// Clear the color and depth buffers
-	//glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//TODO: work in progress
+	/*
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	GeometryPass();
 
-	//Render scene?
+	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	 */
 
 	//Debug: Custom render targets
 	if(NDEBUG)
 	{
-		float w = (m_width / 6.0f) / m_width;
-		float h = (m_height / 6.0f) / m_height;
+		float w = (m_width / 7.0f) / m_width;
+		float h = (m_height / 7.0f) / m_height;
 		RenderTargetToScreen(m_gPosition, w * 0, h * 0, w, h);
 		RenderTargetToScreen(m_gNormal, w * 1, h * 0, w, h);
 		RenderTargetToScreen(m_gAlbedoSpec, w * 2, h * 0, w, h);
-		//RenderTargetToScreen(m_rboDepth, w * 3, h * 0, w, h); doesn't work
-		RenderTargetToScreen(m_colorBuffers[0], w * 5, h * 0, w, h);
-
-		//m_renderer.RenderTargetToScreen(m_renderer.pingpongColorbuffers[1], w * 3, h * 0, w, h);
-		//m_renderer.RenderTargetToScreen(m_renderer.m_guiTexID, w * 4, h * 0, w, h);
+		RenderTargetToScreen(m_colorBuffers[0], w * 3, h * 0, w, h); //HDR/Scene
+		RenderTargetToScreen(m_colorBuffers[1], w * 4, h * 0, w, h); //Bloom
+		RenderTargetToScreen(m_pingpongColorbuffers[0], w * 5, h * 0, w, h);
+		RenderTargetToScreen(m_pingpongColorbuffers[1], w * 6, h * 0, w, h);
 	}
 }
 
@@ -141,8 +146,28 @@ void OGLRenderer::HandleKeyInput( IEventPtr pEvent )
 		{
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
-	}
+		if(e->m_key == GLFW_KEY_B)
+		{
+			m_bloom = !m_bloom;
+			m_shaderBloomFinal->Use();
+			m_shaderBloomFinal->SetInt("bloom", m_bloom);
 
+			std::cout << "bloom: " << (m_bloom ? "on" : "off") << "| exposure: " << EXPOSURE << std::endl;
+		}
+		if(e->m_key == GLFW_KEY_N)
+		{
+			if(m_activeShaderGeometry == m_shaderGeometryNormalPass)
+			{
+				m_activeShaderGeometry = m_shaderGeometryPass;
+				std::cout << "Normals: Normals" << std::endl;
+			}
+			else
+			{
+				m_activeShaderGeometry = m_shaderGeometryNormalPass;
+				std::cout << "Normals: NormalMap" << std::endl;
+			}
+		}
+	}
 }
 
 void OGLRenderer::Resize(int width, int height)
@@ -163,10 +188,18 @@ void OGLRenderer::ResizeCallback(IEventPtr pEvent)
 	Resize(pCastEventData->m_width, pCastEventData->m_height);
 }
 
-unsigned int OGLRenderer::LoadShader( const char *vertexPath, const char *fragmentPath, const char *shaderName )
+void OGLRenderer::AddToRenderQueue(Mesh* mesh)
+{
+	for( int i = 0; i < mesh->m_shadersEffects.size(); ++i )
+	{
+		m_shaderMap[ mesh->m_shadersEffects[i].m_pass ][ mesh->m_shadersEffects[i].m_effect ].m_renderQueue.push(mesh);
+	}
+}
+
+unsigned int OGLRenderer::LoadShader( const char *vertexPath, const char *fragmentPath, const char *renderPass ,const char *effectName )
 {
 	Shader *shader = new Shader(vertexPath, fragmentPath);
-	m_shaderMap[shaderName] = shader;
+	m_shaderMap[renderPass][effectName].m_shader = shader;
 	return shader->ID;
 }
 
@@ -289,6 +322,62 @@ void OGLRenderer::RenderQuad()
 //---------------------------------------------------------------------------------------------------------------------
 // Private Functions
 //---------------------------------------------------------------------------------------------------------------------
+void OGLRenderer::RenderQueue()
+{
+	//??
+}
+
+//TODO: work in progres
+//BUG: add transforms to renderqueue object instead of mesh
+void OGLRenderer::GeometryPass() {
+	glm::mat4 projection = glm::perspective( IRenderer::camera.Zoom, ( float ) m_width / ( float ) m_height, 0.1f,
+											 1000.0f );
+	glm::mat4 view = IRenderer::camera.GetViewMatrix();
+//TODO: don't make rendering order fixed
+// -----------------------------------------------------------------
+// 1. geometry pass: render scene's geometry/color data into gbuffer
+// -----------------------------------------------------------------
+glBindFramebuffer( GL_FRAMEBUFFER, m_gBuffer );
+	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+	OglRenderPassMap *passMap = &m_shaderMap["gBuffer"];
+	RenderPass* pass = &m_shaderMap["gBuffer"]["gNormal"];
+
+	//Set uniforms
+	Shader *shader = pass->m_shader;
+	shader->Use();
+	shader->SetMat4( "projection", projection );
+	shader->SetMat4( "view", view );
+
+	std::queue< Mesh * > queue = pass->m_renderQueue;
+	while( !queue.empty()) {
+		Mesh *mesh = queue.front();
+		mesh->Draw( shader );
+		queue.pop();
+	}
+
+	/*
+	for(auto const &renderPass : *passMap)
+	{
+
+		//Set uniforms
+		Shader* shader = renderPass.second.m_shader;
+		shader->Use();
+		shader->SetMat4("projection", projection);
+		shader->SetMat4("view", view);
+
+		std::queue<Mesh *> queue = renderPass.second.m_renderQueue;
+		while( !queue.empty() )
+		{
+			Mesh* mesh = queue.front();
+			mesh->Draw(shader);
+			queue.pop();
+		}
+	}
+	*/
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void OGLRenderer::PrintVersions()
 {
 	// Get info of GPU and supported OpenGL version
@@ -366,15 +455,6 @@ void OGLRenderer::SetupBuffers()
 		glBindRenderbuffer(GL_RENDERBUFFER, m_rboDepth);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, m_width, m_height);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_rboDepth);
-		/*
-		// Depth buffer
-		glGenTextures(1, &m_gDepth);
-		glBindTexture(GL_TEXTURE_2D, m_gDepth);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, m_width, m_height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NULL);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_gDepth, 0);
-		 */
 
 		// tell OpenGL which color attachments we'll use (of this framebuffer) for rendering
 		unsigned int attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
@@ -400,25 +480,24 @@ void OGLRenderer::SetupBuffers()
 		for (GLuint i = 0; i < 2; i++)
 		{
 			glBindTexture(GL_TEXTURE_2D, m_colorBuffers[i]);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, NULL);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_width, m_height, 0, GL_RGB, GL_FLOAT, NULL);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);  // We clamp to the edge as the blur filter would otherwise sample repeated texture values!
-			//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);  // We clamp to the edge as the blur filter would otherwise sample repeated texture values!
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 			// attach texture to framebuffer
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, m_colorBuffers[i], 0);
 		}
-		// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering
-		GLuint attachments2[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-		glDrawBuffers(2, attachments2);
-
 		// create and attach depth buffer (renderbuffer)
-/*
+		//TODO: doesn't work...
 		glGenRenderbuffers(1, &m_hdrRboDepth);
 		glBindRenderbuffer(GL_RENDERBUFFER, m_hdrRboDepth);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, m_width, m_height);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_hdrRboDepth);
- */
+
+		// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering
+		GLuint attachments2[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, attachments2);
 
 		// - Finally check if framebuffer is complete
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -427,6 +506,27 @@ void OGLRenderer::SetupBuffers()
 		}
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	// Ping pong framebuffer for blurring
+	glGenFramebuffers(2, m_pingpongFBO);
+	glGenTextures(2, m_pingpongColorbuffers);
+	for (GLuint i = 0; i < 2; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, m_pingpongFBO[i]);
+		glBindTexture(GL_TEXTURE_2D, m_pingpongColorbuffers[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_width, m_height, 0, GL_RGB, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // We clamp to the edge as the blur filter would otherwise sample repeated texture values!
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_pingpongColorbuffers[i], 0);
+		// Also check if framebuffers are complete (no need for depth buffer)
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		{
+			std::cout << "pingpong: Framebuffer not complete!" << std::endl;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
 }
 
 void OGLRenderer::SetupShaders()
@@ -437,7 +537,45 @@ void OGLRenderer::SetupShaders()
 	);
 
 	m_shaderGeometryPass = new Shader(
+			"resources/Shaders/gbufferNormal.vert",
+			"resources/Shaders/gbufferNormal.frag"
+	);
+	m_shaderGeometryNormalPass = new Shader(
 			"resources/Shaders/gbuffer.vert",
 			"resources/Shaders/gbuffer.frag"
 	);
+	m_activeShaderGeometry = m_shaderGeometryNormalPass;
+
+	m_shaderBlur = new Shader(
+		"resources/Shaders/blur.vert",
+		"resources/Shaders/blur.frag"
+	);
+
+	m_shaderBloomFinal = new Shader(
+		"resources/Shaders/bloomFinal.vert",
+		"resources/Shaders/bloomFinal.frag"
+	);
+	m_shaderBloomFinal->Use();
+	m_shaderBloomFinal->SetInt("scene", 0);
+	m_shaderBloomFinal->SetInt("bloomBlur", 1);
+	m_shaderBloomFinal->SetInt("bloom", m_bloom);
+	m_shaderBloomFinal->SetFloat("exposure", EXPOSURE);
+}
+
+void OGLRenderer::SetupGbufferShaders()
+{
+	m_shaderMap["gBuffer"]["gVertex"].m_shader = new Shader(
+		"resources/Shaders/gBuffer/gVertex.vert",
+		"resources/Shaders/gBuffer/gVertex.frag"
+	);
+	m_shaderMap["gBuffer"]["gNormal"].m_shader = new Shader(
+		"resources/Shaders/gBuffer/gNormal.vert",
+		"resources/Shaders/gBuffer/gNormal.frag"
+	);
+	m_shaderMap["gBuffer"]["gColorTextures"].m_shader = new Shader(
+		"resources/Shaders/gBuffer/gColorTextures.vert",
+		"resources/Shaders/gBuffer/gColorTextures.frag"
+	);
+	//TODO: replace
+	m_shaderMap["gBuffer"]["gNormalMap"].m_shader = m_shaderMap["gBuffer"]["gNormal"].m_shader;
 }

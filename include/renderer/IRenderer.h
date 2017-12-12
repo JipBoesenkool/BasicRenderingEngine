@@ -6,6 +6,8 @@
 #define IRENDERER_H
 
 #include "../events/IEvent.h"
+#include "../../src/ogl_renderer/model/Mesh.h"
+#include "../../src/ogl_renderer/Camera.h"
 
 class IRenderer
 {
@@ -13,6 +15,7 @@ class IRenderer
 // Getters & Setters
 //---------------------------------------------------------------------------------------------------------------------
 public:
+	static Camera camera;
 	/**
 	// Getter for the global renderer. This is the renderer that is used by the majority of the engine.
 	*/
@@ -40,8 +43,10 @@ public:
 	virtual void Resize(int width, int height) = 0;
 	virtual void ResizeCallback(IEventPtr pEvent) = 0;
 
+	virtual void AddToRenderQueue(Mesh* mesh) = 0;
+
 	//TODO: how does this work for other rendering apis?
-	virtual unsigned int LoadShader(const char * vertexPath, const char * fragmentPath, const char *shaderName) = 0;
+	virtual unsigned int LoadShader(const char *renderPass ,const char *effectName, const char * vertexPath, const char* geometryPath = nullptr ) = 0;
 
 //Primitives
 	virtual void RenderCube() = 0;

@@ -10,14 +10,23 @@
 #include <glad/glad.h>
 //TODO: remove glfw
 #include <GLFW/glfw3.h>
+#include <queue>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "Shader.h"
+#include "model/Mesh.h"
 
 //typedef
-typedef std::map<std::string, Shader* > OglShaderMap;
+struct RenderPass
+{
+	Shader* m_shader;
+	std::queue<Mesh *> m_renderQueue;
+};
+
+typedef std::map<std::string, RenderPass > OglRenderPassMap; //shader effect, RenderPassObj
+typedef std::map<std::string, OglRenderPassMap > OglPassMap; //pass, OglRenderPassMap
 
 class OGLRenderer : public IRenderer
 {
@@ -27,18 +36,34 @@ class OGLRenderer : public IRenderer
 public:
 	int m_width;
 	int m_height;
-	OglShaderMap m_shaderMap;
+	OglPassMap m_shaderMap;
+
 	//gBuffer
 	unsigned int m_gBuffer, m_gPosition, m_gNormal, m_gAlbedoSpec, m_gDepth, m_rboDepth;
+	Shader* m_activeShaderGeometry;
+	Shader* m_shaderGeometryPass;
+	Shader* m_shaderGeometryNormalPass;
 	//hdrBuffer
 	unsigned int m_hdrFBO, m_colorBuffers[2], m_hdrRboDepth;
-	Shader* m_shaderGeometryPass;
-	Shader* m_defaultScreenShader;
+	Shader* m_shaderBlur;
+
+	// Post-processing
+	// Ping pong framebuffer for blurring
+	unsigned m_pingpongFBO[2];
+	unsigned m_pingpongColorbuffers[2];
+	Shader* m_shaderBloomFinal;
 
 private:
+	// Post-processing
+	// Ping pong framebuffer for blurring
+	const float EXPOSURE = 1.0f;
+	bool m_bloom = true;
+
 	//Primitives
+	Shader* m_defaultScreenShader;
 	unsigned int quadVAO = 0;
 	unsigned int quadVBO = 0;
+
 	unsigned int cubeVAO = 0;
 	unsigned int cubeVBO = 0;
 
@@ -55,12 +80,16 @@ public:
 // Private Functions
 //---------------------------------------------------------------------------------------------------------------------
 private:
+	void RenderQueue();
 	void PrintVersions();
 	void SetupOpenglSettings();
 
 	void SetupEventListeners();
 	void SetupBuffers();
 	void SetupShaders();
+	void SetupGbufferShaders();
+
+	void GeometryPass();
 
 //---------------------------------------------------------------------------------------------------------------------
 // Interface Functions
@@ -78,7 +107,9 @@ public:
 	void Resize(int width, int height) override;
 	void ResizeCallback(IEventPtr pEvent) override;
 
-	unsigned int LoadShader(const char * vertexPath, const char * fragmentPath, const char *shaderName) override;
+	void AddToRenderQueue(Mesh* mesh) override;
+
+	unsigned int LoadShader(const char *renderPass ,const char *effectName, const char * vertexPath, const char* geometryPath = nullptr ) override;
 
 //Primitives
 	void RenderCube() override;

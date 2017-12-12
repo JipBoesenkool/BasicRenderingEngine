@@ -18,7 +18,6 @@
 
 GLFWwindow* window;
 OGLRenderer* oglRenderer;
-Camera camera( glm::vec3(0.0f, 0.0f, 20.0f) );
 std::vector<glm::vec3> objectPositions;
 std::vector<glm::vec3> lightPositions;
 std::vector<glm::vec3> lightColors;
@@ -49,24 +48,24 @@ public:
 		{
 			if(e->m_key == GLFW_KEY_W)
 			{
-				camera.ProcessKeyboard(FORWARD, 1.0f);
+				m_pCam->ProcessKeyboard(FORWARD, 1.0f);
 			}
 			if(e->m_key == GLFW_KEY_S)
 			{
-				camera.ProcessKeyboard(BACKWARD, 1.0f);
+				m_pCam->ProcessKeyboard(BACKWARD, 1.0f);
 			}
 			if(e->m_key == GLFW_KEY_A)
 			{
-				camera.ProcessKeyboard(LEFT, 1.0f);
+				m_pCam->ProcessKeyboard(LEFT, 1.0f);
 			}
 			if(e->m_key == GLFW_KEY_D)
 			{
-				camera.ProcessKeyboard(RIGHT, 1.0f);
+				m_pCam->ProcessKeyboard(RIGHT, 1.0f);
 			}
 		}
 	}
 };
-Input input(&camera);
+Input input(&IRenderer::camera);
 
 //TODO: move to good place
 void RenderTest()
@@ -74,8 +73,8 @@ void RenderTest()
 	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glm::mat4 projection = glm::perspective(camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
-	glm::mat4 view = camera.GetViewMatrix();
+	glm::mat4 projection = glm::perspective(IRenderer::camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
+	glm::mat4 view = IRenderer::camera.GetViewMatrix();
 
 	glm::mat4 model(1.0f);
 	normalShaderProgram->Use();
@@ -101,8 +100,8 @@ void RenderTest()
 
 void RenderModels()
 {
-	glm::mat4 projection = glm::perspective(camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
-	glm::mat4 view = camera.GetViewMatrix();
+	glm::mat4 projection = glm::perspective(IRenderer::camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
+	glm::mat4 view = IRenderer::camera.GetViewMatrix();
 
 	glm::mat4 model(1.0f);
 	modelShaderProgram->Use();
@@ -119,8 +118,8 @@ void RenderModels()
 
 void RenderLights()
 {
-	glm::mat4 projection = glm::perspective(camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
-	glm::mat4 view = camera.GetViewMatrix();
+	glm::mat4 projection = glm::perspective(IRenderer::camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
+	glm::mat4 view = IRenderer::camera.GetViewMatrix();
 	glm::mat4 model(1.0f);
 
 	shaderLightBox->Use();
@@ -137,14 +136,28 @@ void RenderLights()
 	}
 }
 
+void RenderQueueTest()
+{
+	glm::mat4 model;
+	for (unsigned int i = 0; i < objectPositions.size(); i++)
+	{
+		model = glm::mat4(1.0f);
+		model = glm::translate(model, objectPositions[i]);
+		model = glm::scale(model, glm::vec3(0.25f));
+		nanosuit->Update( model );
+	}
+
+	IRenderer::Get()->Render();
+}
+
 void RenderGbuffer()
 {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	glm::mat4 projection = glm::perspective(camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
-	glm::mat4 view = camera.GetViewMatrix();
+	glm::mat4 projection = glm::perspective(IRenderer::camera.Zoom, (float)oglRenderer->m_width / (float)oglRenderer->m_height, 0.1f, 1000.0f);
+	glm::mat4 view = IRenderer::camera.GetViewMatrix();
 
 	// -----------------------------------------------------------------
 	// 1. geometry pass: render scene's geometry/color data into gbuffer
@@ -152,16 +165,17 @@ void RenderGbuffer()
 	glBindFramebuffer(GL_FRAMEBUFFER, oglRenderer->m_gBuffer);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
 		glm::mat4 model(1.0f);
-		oglRenderer->m_shaderGeometryPass->Use();
-		oglRenderer->m_shaderGeometryPass->SetMat4("projection", projection);
-		oglRenderer->m_shaderGeometryPass->SetMat4("view", view);
+		oglRenderer->m_activeShaderGeometry->Use();
+		oglRenderer->m_activeShaderGeometry->SetMat4("projection", projection);
+		oglRenderer->m_activeShaderGeometry->SetMat4("view", view);
 		for (unsigned int i = 0; i < objectPositions.size(); i++)
 		{
 			model = glm::mat4(1.0f);
 			model = glm::translate(model, objectPositions[i]);
 			model = glm::scale(model, glm::vec3(0.25f));
-			nanosuit->Draw(model, oglRenderer->m_shaderGeometryPass);
+			nanosuit->Draw(model, oglRenderer->m_activeShaderGeometry);
 		}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -170,6 +184,9 @@ void RenderGbuffer()
 	// -----------------------------------------------------------------------------------------------------------------------
 	glBindFramebuffer(GL_FRAMEBUFFER, oglRenderer->m_hdrFBO);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//TODO: remove hack, render geometry for depth buffer since depth buffer copy doesn't work
+		RenderModels();
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		shaderLightingPass->Use();
 		glActiveTexture(GL_TEXTURE0);
@@ -178,8 +195,6 @@ void RenderGbuffer()
 		glBindTexture(GL_TEXTURE_2D, oglRenderer->m_gNormal);
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, oglRenderer->m_gAlbedoSpec);
-//		glActiveTexture(GL_TEXTURE3);
-//		glBindTexture(GL_TEXTURE_2D, oglRenderer->m_gDepth);
 		// send light relevant uniforms
 		for (unsigned int i = 0; i < lightPositions.size(); i++)
 		{
@@ -194,41 +209,64 @@ void RenderGbuffer()
 		}
 
 		shaderLightingPass->Use();
-		shaderLightingPass->SetVec3("viewPos", camera.Position);
-		oglRenderer->RenderQuad();
+		shaderLightingPass->SetVec3("viewPos", IRenderer::camera.Position);
 
+		glDisable(GL_DEPTH_TEST);
+		oglRenderer->RenderQuad();
+		glEnable(GL_DEPTH_TEST);
+
+		// 3.1. render lights as bright cubes
+		// --------------------------------
+		shaderLightBox->Use();
+		shaderLightBox->SetMat4("projection", projection);
+		shaderLightBox->SetMat4("view", view);
+		for (unsigned int i = 0; i < lightPositions.size(); i++)
+		{
+			model = glm::mat4(1.0f);
+			model = glm::translate(model, lightPositions[i]);
+			model = glm::scale(model, glm::vec3(0.125f));
+			shaderLightBox->SetMat4("model", model);
+			shaderLightBox->SetVec3("lightColor", lightColors[i]);
+			oglRenderer->RenderCube();
+		}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	// 3. Blur bright fragments w/ two-pass Gaussian Blur
+	bool horizontal = true, first_iteration = true;
+	unsigned int amount = 10;
+	oglRenderer->m_shaderBlur->Use();
+	for (int i = 0; i < amount; i++)
+	{
+	glBindFramebuffer(GL_FRAMEBUFFER, oglRenderer->m_pingpongFBO[horizontal]);
+		oglRenderer->m_shaderBlur->SetInt("horizontal", horizontal);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, first_iteration ? oglRenderer->m_colorBuffers[1] : oglRenderer->m_pingpongColorbuffers[!horizontal]);  // bind texture of other framebuffer (or scene if first iteration)
+		oglRenderer->RenderQuad();
+		glBindTexture(GL_TEXTURE_2D, 0);
+		horizontal = !horizontal;
+		if (first_iteration)
+		{
+			first_iteration = false;
+		}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
 
 //Final render pass
 	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//TODO: remove hack, render geometry for depth buffer since depth buffer copy doesn't work
-	RenderModels();
-	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
 	// 3. Now render floating point color buffer to 2D quad and tonemap HDR colors to default framebuffer's (clamped) color range
-	glDisable(GL_DEPTH_TEST);
-	oglRenderer->RenderTargetToScreen( oglRenderer->m_colorBuffers[0] );
-	glEnable(GL_DEPTH_TEST);
+	oglRenderer->m_shaderBloomFinal->Use();
+	oglRenderer->m_shaderBloomFinal->SetInt("scene", 0);
+	oglRenderer->m_shaderBloomFinal->SetInt("bloomBlur", 1);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, oglRenderer->m_colorBuffers[0]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, oglRenderer->m_pingpongColorbuffers[!horizontal]);
+	oglRenderer->RenderQuad();
+	glBindTexture(GL_TEXTURE_2D, 0);
 
-	// 3.6. render lights on top of scene
-	// --------------------------------
-	shaderLightBox->Use();
-	shaderLightBox->SetMat4("projection", projection);
-	shaderLightBox->SetMat4("view", view);
-	for (unsigned int i = 0; i < lightPositions.size(); i++)
-	{
-		model = glm::mat4(1.0f);
-		model = glm::translate(model, lightPositions[i]);
-		model = glm::scale(model, glm::vec3(0.125f));
-		shaderLightBox->SetMat4("model", model);
-		shaderLightBox->SetVec3("lightColor", lightColors[i]);
-		oglRenderer->RenderCube();
-	}
-
-	//3.7 Render sky box
+	//3.2 Render sky box
 
 	//Draw all the framebuffers
 	oglRenderer->Render();
@@ -288,9 +326,9 @@ int main(void)
 		float zPos = ((rand() % 100) / 100.0) * 6.0 - 3.0;
 		lightPositions.push_back(glm::vec3(xPos, yPos, zPos));
 		// also calculate random color
-		float rColor = ((rand() % 100) / 200.0f) + 0.5; // between 0.5 and 1.0
-		float gColor = ((rand() % 100) / 200.0f) + 0.5; // between 0.5 and 1.0
-		float bColor = ((rand() % 100) / 200.0f) + 0.5; // between 0.5 and 1.0
+		float rColor = ((rand() % 100) / 200.0f) + 0.5 * 2.0f; // between 1.0 and 2.0
+		float gColor = ((rand() % 100) / 200.0f) + 0.5 * 2.0f; // between 1.0 and 2.0
+		float bColor = ((rand() % 100) / 200.0f) + 0.5 * 2.0f; // between 1.0 and 2.0
 		lightColors.push_back(glm::vec3(rColor, gColor, bColor));
 	}
 
@@ -299,7 +337,6 @@ int main(void)
 	shaderLightingPass->SetInt("gPosition", 0);
 	shaderLightingPass->SetInt("gNormal", 1);
 	shaderLightingPass->SetInt("gAlbedoSpec", 2);
-	//shaderLightingPass->SetInt("gDepth", 3);
 
 	//Input
 	// key

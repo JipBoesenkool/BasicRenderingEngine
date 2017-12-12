@@ -2,21 +2,41 @@
 // Created by Jip Boesenkool on 26/10/2017.
 //
 #include "Mesh.h"
+#include "../../../include/renderer/IRenderer.h"
 
 //Public Functions
+Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, glm::vec3 color)
+{
+	m_vertices = vertices;
+	m_indices  = indices;
+	m_color    = color;
+
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gVertex"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gNormal"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gColor"}  );
+}
+
 Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures)
 {
 	m_vertices = vertices;
-	m_indices = indices;
+	m_indices  = indices;
 	m_textures = textures;
+
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gVertex"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gNormal"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gColorTextures"} );
 }
 
-Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, std::vector<Tangex> tangents)
+Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, std::vector<glm::vec3> tangents)
 {
 	m_vertices = vertices;
-	m_indices = indices;
+	m_indices  = indices;
 	m_textures = textures;
 	m_tangents = tangents;
+
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gVertex"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gNormalMap"} );
+	m_shadersEffects.push_back( PassShaderPair{"gBuffer","gColorTextures"} );
 }
 
 Mesh::~Mesh()
@@ -26,11 +46,21 @@ Mesh::~Mesh()
 	glDeleteBuffers(1, &m_EBO);
 }
 
+void Mesh::Update( glm::mat4 m )
+{
+	m_origin = m;
+	IRenderer::Get()->AddToRenderQueue(this);
+}
+
 void Mesh::Draw( Shader *shader )
 {
 	shader->Use();
 
 	BindTextures(shader);
+
+	//TODO: work in progress
+	//shader->SetMat4("model", m_origin);
+	shader->SetVec3("color", m_color);
 
 	// draw mesh
 	glBindVertexArray(m_VAO);
@@ -43,12 +73,6 @@ void Mesh::Draw( Shader *shader )
 
 void Mesh::SetupMesh()
 {
-	int data_sizeof = sizeof(Vertex);
-	if( m_tangents.size() == m_vertices.size() )
-	{
-		data_sizeof += sizeof(Tangex);
-	}
-
 	glGenVertexArrays(1, &m_VAO);
 	glGenBuffers(1, &m_VBO);
 	glGenBuffers(1, &m_EBO);
@@ -56,29 +80,30 @@ void Mesh::SetupMesh()
 	glBindVertexArray(m_VAO);
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
-	glBufferData(GL_ARRAY_BUFFER, m_vertices.size() * data_sizeof, m_vertices.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, m_vertices.size() * sizeof(Vertex), m_vertices.data(), GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_indices.size() * sizeof(unsigned int), m_indices.data(), GL_STATIC_DRAW);
 
 	// vertex positions
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, data_sizeof, (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
 	// vertex normals
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, data_sizeof, (void*)offsetof(Vertex, m_normal));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, m_normal));
 	// vertex texCoords
 	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, data_sizeof, (void*)offsetof(Vertex, m_texCoords));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, m_texCoords));
 
+	//Optional: tangents
 	if( m_tangents.size() == m_vertices.size() )
 	{
-		// tangent
+		//TODO: Set shader
+		glGenBuffers(1, &m_TangVBO);
+		glBindBuffer(GL_ARRAY_BUFFER, m_TangVBO);
+		glBufferData(GL_ARRAY_BUFFER, m_tangents.size() * sizeof(m_tangents[0]), m_tangents.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(3);
-		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, data_sizeof, (void*)(sizeof(Vertex) + 0) );
-		// bitangent
-		glEnableVertexAttribArray(4);
-		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, data_sizeof, (void*)(sizeof(Vertex) + offsetof(Tangex, m_bitangent)));
+		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof( m_tangents[0] ), (void*)0 );
 	}
 
 	glBindVertexArray(0);
