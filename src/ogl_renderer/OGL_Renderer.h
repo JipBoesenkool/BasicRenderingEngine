@@ -28,14 +28,19 @@ public:
 	int m_width;
 	int m_height;
 	OglShaderMap m_shaderMap;
-	unsigned int m_gBuffer, m_gPosition, m_gNormal, m_gAlbedoSpec, m_rboDepth;
+	//gBuffer
+	unsigned int m_gBuffer, m_gPosition, m_gNormal, m_gAlbedoSpec, m_gDepth, m_rboDepth;
+	//hdrBuffer
+	unsigned int m_hdrFBO, m_colorBuffers[2], m_hdrRboDepth;
 	Shader* m_shaderGeometryPass;
 	Shader* m_defaultScreenShader;
 
 private:
-
-	GLuint quadVAO = 0;
-	GLuint quadVBO;
+	//Primitives
+	unsigned int quadVAO = 0;
+	unsigned int quadVBO = 0;
+	unsigned int cubeVAO = 0;
+	unsigned int cubeVBO = 0;
 
 	bool NDEBUG = false;
 //---------------------------------------------------------------------------------------------------------------------
@@ -76,6 +81,7 @@ public:
 	unsigned int LoadShader(const char * vertexPath, const char * fragmentPath, const char *shaderName) override;
 
 //Primitives
+	void RenderCube() override;
 	void RenderQuad() override;
 };
 

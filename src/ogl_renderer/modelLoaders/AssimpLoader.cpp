@@ -9,7 +9,7 @@
 void AssimpLoader::LoadModel(const char* filepath, Model* model)
 {
 	Assimp::Importer import;
-	const aiScene *scene = import.ReadFile(filepath, aiProcess_Triangulate | aiProcess_FlipUVs);
+	const aiScene *scene = import.ReadFile(filepath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
 
 	if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
 	{
@@ -40,6 +40,7 @@ Mesh AssimpLoader::ProcessMesh(aiMesh *mesh, const aiScene *scene, Model* model)
 {
 	// data to fill
 	std::vector<Vertex> vertices;
+	std::vector<Tangex> tangents;
 	std::vector<unsigned int> indices;
 	std::vector<Texture> textures;
 
@@ -47,6 +48,7 @@ Mesh AssimpLoader::ProcessMesh(aiMesh *mesh, const aiScene *scene, Model* model)
 	for(unsigned int i = 0; i < mesh->mNumVertices; i++)
 	{
 		Vertex vertex;
+		Tangex tengex;
 		glm::vec3 vector; // we declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
 		// positions
 		vector.x = mesh->mVertices[i].x;
@@ -72,19 +74,20 @@ Mesh AssimpLoader::ProcessMesh(aiMesh *mesh, const aiScene *scene, Model* model)
 		{
 			vertex.m_texCoords = glm::vec2(0.0f, 0.0f);
 		}
-		/*
+		vertices.push_back(vertex);
+
+		//TODO: check, should be optional
 		// tangent
 		vector.x = mesh->mTangents[i].x;
 		vector.y = mesh->mTangents[i].y;
 		vector.z = mesh->mTangents[i].z;
-		vertex.Tangent = vector;
+		tengex.m_tangent = vector;
 		// bitangent
 		vector.x = mesh->mBitangents[i].x;
 		vector.y = mesh->mBitangents[i].y;
 		vector.z = mesh->mBitangents[i].z;
-		vertex.Bitangent = vector;
-		 */
-		vertices.push_back(vertex);
+		tengex.m_bitangent = vector;
+		tangents.push_back(tengex);
 	}
 
 	// now walk through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
@@ -121,7 +124,7 @@ Mesh AssimpLoader::ProcessMesh(aiMesh *mesh, const aiScene *scene, Model* model)
 	textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
 	// return a mesh object created from the extracted mesh data
-	return Mesh(vertices, indices, textures);
+	return Mesh(vertices, indices, textures, tangents);
 }
 
 // checks all material textures of a given type and loads the textures if they're not loaded yet.

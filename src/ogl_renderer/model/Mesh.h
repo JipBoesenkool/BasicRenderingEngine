@@ -26,6 +26,8 @@ public:
 	std::vector<Vertex> m_vertices;
 	std::vector<unsigned int> m_indices;
 	std::vector<Texture>m_textures;
+	//Optional
+	std::vector<Tangex> m_tangents;
 private:
 	/*  Render data  */
 	unsigned int m_VAO, m_VBO, m_EBO;
@@ -33,6 +35,7 @@ private:
 public:
 	Mesh(){};
 	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures);
+	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, std::vector<Tangex> tangents);
 	~Mesh();
 
 	void Draw( Shader* shader );

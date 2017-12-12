@@ -49,6 +49,10 @@ void GLFWindow::ErrorCallback(int error, const char* description)
 
 void GLFWindow::ResizeCallback(GLFWwindow* window, int width, int height)
 {
+#ifdef __APPLE__
+	glfwGetFramebufferSize(window, &width, &height); // In case your Mac has a retina display
+#endif
+
 	IWindow::Get()->Resize(width, height);
 	// Instantiate the event. The event system tracks all events with smart
 	// pointers, so you must instantiate the event using a smart pointer.
@@ -106,6 +110,7 @@ void GLFWindow::CreateWindow( int width, int height, char* title )
 	// Enable forward compatibility and allow a modern OpenGL context
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
+
 
 	// Create the GLFW window
 	GLFWindow::mp_window = glfwCreateWindow(m_width, m_height, m_title, NULL, NULL);

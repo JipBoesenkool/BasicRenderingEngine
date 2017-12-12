@@ -44,6 +44,7 @@ public:
 	virtual unsigned int LoadShader(const char * vertexPath, const char * fragmentPath, const char *shaderName) = 0;
 
 //Primitives
+	virtual void RenderCube() = 0;
 	virtual void RenderQuad() = 0;
 };
 
